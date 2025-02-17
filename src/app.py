@@ -29,17 +29,23 @@ def generate_arguments() -> ap.Namespace:
         )
 
     # File location
-    parser.add_argument("-i", "--input", help="Path to the input file",
+    parser.add_argument("-i", "--input", help="Path to the input file.",
                         required=True, type=Path)
     
     # Column to split
     # TODO: Group by multiple columns
     parser.add_argument("-c", "--category-column", 
-                        help="Name of the column that contains the categories",
+                        help="""
+                        Name of the column that contains the categories 
+                        (case sensitive).
+                        """,
                         required=True)
 
     parser.add_argument("-u", "--uppercase",
-                        help="Set all strings inside the dataset to uppercase",
+                        help="""
+                        Set all strings inside the dataset to uppercase, 
+                        including the file header.
+                        """,
                         action="store_true", default=False)
 
     return parser.parse_args()
