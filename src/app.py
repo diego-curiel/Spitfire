@@ -19,7 +19,13 @@ def generate_arguments() -> ap.Namespace:
     """
     parser = ap.ArgumentParser(
             prog="Spitfire",
-            description="Splits files according to certain rows"
+            description="""
+            Takes a CSV file as input (normally a database dump file), then 
+            splits the dataset into multiple DataFrames based on unique category 
+            values.  
+            Each resulting DataFrame contains only the rows corresponding to a 
+            single category, preserving the original order of the data.
+            """
         )
 
     # File location
