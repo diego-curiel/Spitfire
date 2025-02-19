@@ -208,6 +208,10 @@ def main():
 
     file_name = get_file_name(file_path)
     
+    output_dir = parent_directory.joinpath(
+            "{f}.split.xlsx".format(f=file_name)
+        )
+
     with pr.Profile() as profiler:
         # Yield the grouped DataFrames
         grouped_dataframes = grouped_dataframes_generator(
@@ -219,26 +223,29 @@ def main():
             print("The files will be saved with textfields in uppercase")
             input("Press any key to continue...")
 
-        # Save the groups into Excel Files
-        print("Reading file...")
-        for group in grouped_dataframes:
-            category, df = group
-            df:pd.DataFrame
+        # Save the groups into Excel File
+        with pd.ExcelWriter(
+                output_dir, mode="w", engine="xlsxwriter") as writer:
+            print("Reading file...")
+            for group in grouped_dataframes:
+                category, df = group
+                df:pd.DataFrame
 
-            # If needed, set all of the dataset text fields to uppercase
-            if sys_args.uppercase:
-                to_upper = lambda x: str(x).upper() if isinstance(x, str) else x
-                df = df.map(to_upper)
-                df.columns = [to_upper(x) for x in df.columns]
+                # Ensure that the category is a string
+                if not isinstance(category, str):
+                    category = str(category)
 
-            print("saving group {c}...".format(c=category))
-            print("group size: {s}".format(s=len(df)))
+                # If needed, set all of the dataset text fields to uppercase
+                if sys_args.uppercase:
+                    to_upper = lambda x: str(x).upper() if isinstance(x, str) else x
+                    df = df.map(to_upper)
+                    df.columns = [to_upper(x) for x in df.columns]
+                    category = to_upper(category)
 
-            output_dir = parent_directory.joinpath(
-                    "{f}.{c}.xlsx".format(f=file_name, c=category)
-                )
+                print("saving group {c}...".format(c=category))
+                print("group size: {s}".format(s=len(df)))
 
-            df.to_excel(output_dir, engine="xlsxwriter", index=False)
+                df.to_excel(writer, index=False, sheet_name=category)
 
         # Gather performance information with cProfile
         performance_info = parent_directory.joinpath("profiler_report")
