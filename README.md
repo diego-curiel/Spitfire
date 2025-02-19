@@ -4,11 +4,16 @@ The script takes a CSV file as input (typically a database dump) and splits the 
 Each DataFrame contains only the rows corresponding to a single category, preserving the original data order. 
 Finally, it saves each DataFrame as a separate Excel file.
 ## Options
-* -h, --help            show this help message and exit
-* -i, --input INPUT     Path to the input file.
-* -c, --category-column CATEGORY_COLUMN
-                        Name of the column that contains the categories (case sensitive).
-* -u, --uppercase       Set all strings inside the dataset to uppercase, including the file header.
+*  -h, --help            show this help message and exit
+*  -i, --input INPUT     Path to the input file.
+*  -c, --category-column CATEGORY_COLUMN
+                        Name of the column that contains the
+                        categories (case sensitive).
+*  -m, --max-row MAX_ROW
+                        Set the max_row per sheet for the entire
+                        file
+*  -u, --uppercase       Set all strings inside the dataset to
+                        uppercase, including the file header.
 ## Function Example
 ### original.file.csv
 | index |category|
