@@ -20,21 +20,21 @@ Finally, it saves each DataFrame as a separate Excel file.
 |  5    |    D   |
 |  6    |    B   |
 ### Turns into
-### original.file.a.xlsx
+### original.file.split.xlsx (sheet A)
 | index |category|
 |:-----:|:------:|
 |  1    |    A   |
 |  2    |    A   |
-### original.file.b.xlsx
+### original.file.split.xlsx (sheet B)
 | index |category|
 |:-----:|:------:|
 |  3    |    B   |
 |  6    |    B   |
-### original.file.c.xlsx
+### original.file.split.xlsx (sheet C)
 | index |category|
 |:-----:|:------:|
 |  4    |    C   |
-### original.file.d.xlsx
+### original.file.split.xlsx (sheet D)
 | index |category|
 |:-----:|:------:|
 |  5    |    D   |
