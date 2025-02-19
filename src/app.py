@@ -5,7 +5,9 @@ import cProfile as pr
 import os
 from pathlib import Path
 from typing import Any
+import sys
 
+EXCEL_MAX_ROW = 1048576
 
 def generate_arguments() -> ap.Namespace:
     """
@@ -40,6 +42,10 @@ def generate_arguments() -> ap.Namespace:
                         (case sensitive).
                         """,
                         required=True)
+    
+    parser.add_argument("-m", "--max-row", 
+                        help="Set the max_row per sheet for the entire file",
+                        default=EXCEL_MAX_ROW, type=int)
 
     parser.add_argument("-u", "--uppercase",
                         help="""
@@ -196,6 +202,55 @@ def grouped_dataframes_generator(input_path:Path|str,
         yield value
 
 
+def handle_sheet_overflow(df:pd.DataFrame, sheet_name:str,
+                    max_row:int, index:int=1, 
+                    result:list|None=None) -> list:
+    """
+    Description
+    -----------
+    This function takes a DataFrame and counts its rows. If the DataFrame rows 
+    are less or equal than the max_row value then it returns a dictionary with 
+    the sheet name as the key, and the DataFrame as value. Otherwise, if the 
+    DataFrame row count is bigger than the max_row value, then the function will
+    recursively split the DataFrame by the max_row value, adding a numeral to
+    the sheet name. E.G:
+        max_row = 1024
+        Sheet_A = 2100
+
+        Sheet_A = 1024
+        Sheet_A_2 = 1024
+        Sheet_A_3 = 52
+    ---
+    Arguments
+    ---------
+    df:pd.DataFrame = Dataframe to split.
+    sheet_name: Name of the sheet to be saved.
+    max_row: Max amount of rows supported by the filetype.
+    index:int = Iteration index number.
+    result:list|None (default=None) = Result of the past iteration.
+    ---
+    Return
+    ------
+    list = list containing a tuple with the Sheet names and the DataFrames.
+    """
+    # Create an empty list to save results
+    if not isinstance(result, list):
+        result = list()
+    # Stop when there's no splitting left to do
+    if len(df) == 0:
+        return result
+    # Create a new sheet_name
+    new_name = sheet_name
+    if index > 1:
+        new_name = "{sn}_{i}".format(sn=sheet_name, i=index)
+    # Append the split DataFrame to the result list
+    result.append((new_name, df.iloc[:max_row]))
+    # Search again
+    return handle_sheet_overflow(df=df.iloc[max_row:], sheet_name=sheet_name,
+                           max_row=max_row, index=index + 1,
+                           result=result)
+
+
 def main():
     sys_args = generate_arguments()
 
@@ -208,10 +263,18 @@ def main():
 
     file_name = get_file_name(file_path)
     
-    output_dir = parent_directory.joinpath(
+    OUTPUT_FILE = parent_directory.joinpath(
             "{f}.split.xlsx".format(f=file_name)
         )
+    RECURSION_DEPTH = sys.getrecursionlimit()
 
+    # Handle bad max_row inputs
+    if sys_args.max_row > EXCEL_MAX_ROW:
+        sys_err = "The maximum supported range for rows is: {r}".format(
+                r=EXCEL_MAX_ROW
+            )
+        raise SystemExit(sys_err)
+    # Set profiler to create the performance file
     with pr.Profile() as profiler:
         # Yield the grouped DataFrames
         grouped_dataframes = grouped_dataframes_generator(
@@ -225,7 +288,7 @@ def main():
 
         # Save the groups into Excel File
         with pd.ExcelWriter(
-                output_dir, mode="w", engine="xlsxwriter") as writer:
+                OUTPUT_FILE, mode="w", engine="xlsxwriter") as writer:
             print("Reading file...")
             for group in grouped_dataframes:
                 category, df = group
@@ -244,8 +307,24 @@ def main():
 
                 print("saving group {c}...".format(c=category))
                 print("group size: {s}".format(s=len(df)))
+                
+                # Fix to handle stack overflow
+                max_row = sys_args.max_row
+                splits = len(df) // max_row
 
-                df.to_excel(writer, index=False, sheet_name=category)
+                if RECURSION_DEPTH < splits:
+                    # minus two iterations
+                    sys_err = "ERROR!, the row count for {c} is too low!"
+                    sys_err_ex = " Try increasing the --max-row option value."
+                    sys_err = sys_err.format(c=category) + sys_err_ex
+                    raise SystemExit(sys_err)
+
+                df_split = handle_sheet_overflow(df=df, sheet_name=category,
+                                                 max_row=max_row)
+
+                for sheet_name, split_sheet in df_split:
+                    split_sheet.to_excel(writer, index=False, 
+                                         sheet_name=sheet_name)
 
         # Gather performance information with cProfile
         performance_info = parent_directory.joinpath("profiler_report")
