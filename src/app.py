@@ -54,6 +54,9 @@ def generate_arguments() -> ap.Namespace:
                         action="store_true", default=False)
     parser.add_argument("-o", "--output", help="Path to the output file.",
                         required=True, type=Path)
+    parser.add_argument("--separate", 
+                        help="Save the groups into separated files each.",
+                        action="store_true")
 
     return parser.parse_args()
 
@@ -118,6 +121,24 @@ def get_file_name(file_path:Path|str) -> str:
     del extension
 
     return filename
+
+
+def dataframe_upercase(df:pd.DataFrame)->pd.DataFrame:
+    """Description:
+    Takes a DataFrame and sets all of its textfields to uppercase.
+
+    Parameters:
+    df (pd.DataFrame) - The DataFrame whose textfields will be set to upper.
+
+    Returns:
+    pd.Dataframe - A copy of the passed DataFrame with each textfield set to upper.
+    """
+    textfield_to_upper = lambda x: str(x).upper() if isinstance(x, str) else x
+
+    df = df.map(textfield_to_upper)
+    df.columns = [textfield_to_upper for x in df.columns]
+
+    return df
 
 
 def split_dataset(df:pd.DataFrame, 
@@ -255,20 +276,23 @@ def handle_sheet_overflow(df:pd.DataFrame, sheet_name:str,
 
 def main():
     SYS_ARGS = generate_arguments()
-
-    INPUT_PATH:Path = SYS_ARGS.input
     
+    # Input file information
+    INPUT_PATH:Path = SYS_ARGS.input
+    INPUT_DIR = INPUT_PATH.parent
     # Check file accessibility
     file_exist(file_path=INPUT_PATH)
     
-    INPUT_DIR = INPUT_PATH.parent
-
-    OUTPUT_FILE:Path = SYS_ARGS.output
-    
+    # Output file information
+    OUTPUT_PATH:Path = SYS_ARGS.output
+    OUTPUT_DIR = OUTPUT_PATH.parent
+    OUTPUT_FILENAME = get_file_name(OUTPUT_PATH)
+   
+    # Max rows per sheet
     MAX_ROW = SYS_ARGS.max_row
 
     # If the save file does not exist, raise an exception
-    if not OUTPUT_FILE.parent.exists():
+    if not OUTPUT_PATH.parent.exists():
         raise SystemExit("The save directory does not exist!")
 
     # Handle bad max_row inputs
@@ -284,6 +308,9 @@ def main():
                 input_path=INPUT_PATH,
                 sys_args=SYS_ARGS
             )
+        
+        # Small function to set text to uppercase ignoring other types
+        to_upper = lambda x: x.upper() if isinstance(x, str) else x
 
         if SYS_ARGS.uppercase:
             print("The files will be saved with textfields in uppercase")
@@ -291,31 +318,50 @@ def main():
 
         # Save the groups into Excel File
         print("Reading file...")
-        with pd.ExcelWriter(OUTPUT_FILE, mode="w", 
-                            engine="openpyxl") as writer:
-            for group in grouped_dataframes:
-                category, df = group
-                df:pd.DataFrame
-
-                # Ensure that the category is a string
-                if not isinstance(category, str):
-                    category = str(category)
-
-                # If needed, set all of the dataset text fields to uppercase
+        # Option to save the groups into separated files each.
+        if SYS_ARGS.separate:
+            for category, df in grouped_dataframes:
+                # Check if the user wants their spreadsheet all in uppercase
                 if SYS_ARGS.uppercase:
-                    to_upper = lambda x: str(x).upper() if isinstance(x, str) else x
-                    df = df.map(to_upper)
-                    df.columns = [to_upper(x) for x in df.columns]
+                    df:pd.DataFrame = dataframe_upercase(df)
                     category = to_upper(category)
 
-                print("saving group {c}...".format(c=category))
-                print("group size: {s}".format(s=len(df)))
-                
-                df_split = handle_sheet_overflow(df=df, sheet_name=category,
-                                                 max_row=MAX_ROW)
-                for sheet_name, split_sheet in df_split:
-                    split_sheet.to_excel(writer, index=False, 
-                                         sheet_name=sheet_name)
+                # Change file name according to the category
+                output_file = "{parent}/{filename}.{category}.xlsx"
+                output_file = output_file.format(parent=OUTPUT_DIR,
+                                                 filename=OUTPUT_FILENAME,
+                                                 category=category)
+
+                with pd.ExcelWriter(output_file, mode="w") as excel_writer:
+                    sheet_tuple = handle_sheet_overflow(df=df,
+                                                        sheet_name=category,
+                                                        max_row=MAX_ROW)
+                    print_msg = "Saving group {group_name}..."
+                    print_msg = print_msg.format(group_name=category)
+                    print(print_msg)
+
+                    for sheet_name, df in sheet_tuple:
+                        df.to_excel(excel_writer, index=False, 
+                                    sheet_name=sheet_name)
+
+        else:
+            with pd.ExcelWriter(OUTPUT_PATH, mode="w") as excel_writer:
+                for category, df in grouped_dataframes:
+                    # Check if the user wants their spreadsheet all in uppercase
+                    if SYS_ARGS.uppercase:
+                        df:pd.DataFrame = dataframe_upercase(df)
+                        category = to_upper(category)
+
+                    sheet_tuple = handle_sheet_overflow(df=df,
+                                                        sheet_name=category,
+                                                        max_row=MAX_ROW)
+                    print_msg = "Saving group {group_name}..."
+                    print_msg = print_msg.format(group_name=category)
+                    print(print_msg)
+
+                    for sheet_name, df in sheet_tuple:
+                        df.to_excel(excel_writer, index=False,
+                                    sheet_name=sheet_name)
 
         # Gather performance information with cProfile
         performance_info = INPUT_DIR.joinpath("profiler_report")
