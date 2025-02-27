@@ -288,7 +288,7 @@ def main():
 
         # Save the groups into Excel File
         with pd.ExcelWriter(
-                OUTPUT_FILE, mode="w", engine="xlsxwriter") as writer:
+                OUTPUT_FILE, mode="w", engine="openpyxl") as writer:
             print("Reading file...")
             for group in grouped_dataframes:
                 category, df = group
