@@ -1,10 +1,10 @@
-import pandas as pd
-
 import argparse as ap
 import cProfile as pr
 import os
 from pathlib import Path
 from typing import Any
+
+import pandas as pd
 
 EXCEL_MAX_ROW = 1048576
 
@@ -136,7 +136,7 @@ def dataframe_upercase(df:pd.DataFrame)->pd.DataFrame:
     textfield_to_upper = lambda x: str(x).upper() if isinstance(x, str) else x
 
     df = df.map(textfield_to_upper)
-    df.columns = [textfield_to_upper for x in df.columns]
+    df.columns = [textfield_to_upper(x) for x in df.columns]
 
     return df
 
@@ -216,7 +216,8 @@ def grouped_dataframes_generator(input_path:Path|str,
             for category in temporary_groups.keys():
                 ult_group = ultimate_groups.get(category, pd.DataFrame())
                 temp_group = temporary_groups.get(category, pd.DataFrame())
-
+                # Remove unwanted characters from the category such as '/'
+                category = category.replace('/', '')
                 ultimate_groups[category] = pd.concat([ult_group, temp_group],
                                                       ignore_index=True)
 
@@ -229,7 +230,8 @@ def grouped_dataframes_generator(input_path:Path|str,
 
 def handle_sheet_overflow(df:pd.DataFrame, sheet_name:str, 
                           max_row:int) -> list[tuple]:
-    """Description:
+    """
+    Description:
     This function splits a DataFrame into chunks based on the amount of rows
     passed on the max_row parameter, then it returns a list that contains a
     tuple for each chunk, whose first value is the new name of the sheet.
@@ -295,7 +297,7 @@ def main():
     if not OUTPUT_PATH.parent.exists():
         raise SystemExit("The save directory does not exist!")
 
-    # Handle bad max_row inputs
+    # Handle invalid max_row inputs
     if SYS_ARGS.max_row > EXCEL_MAX_ROW:
         sys_err = "The maximum supported range for rows is: {r}"
         sys_err = sys_err.format(r=EXCEL_MAX_ROW)
@@ -332,9 +334,13 @@ def main():
                                                  filename=OUTPUT_FILENAME,
                                                  category=category)
 
+                # Truncate the category name to comply with
+                # the sheet name limit for Excel
+                sheet_name = category[:30]
+
                 with pd.ExcelWriter(output_file, mode="w") as excel_writer:
                     sheet_tuple = handle_sheet_overflow(df=df,
-                                                        sheet_name=category,
+                                                        sheet_name=sheet_name,
                                                         max_row=MAX_ROW)
                     print_msg = "Saving group {group_name}..."
                     print_msg = print_msg.format(group_name=category)
